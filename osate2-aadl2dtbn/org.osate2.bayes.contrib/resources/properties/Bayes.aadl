@@ -1,0 +1,18 @@
+property set Bayes is
+
+	Distribution : Bayes::DistributionSpecification
+	  applies to ({emv2}**error propagation, {emv2}**error flow, {emv2}**error behavior event
+	  ,{emv2}**error behavior state,{emv2}**error type,{emv2}**type set);
+   
+	DistributionSpecification : type record (
+		MeanValue : aadlreal;
+		StandardDeviation : aadlreal;
+		ShapeParameter : aadlreal;
+		ScaleParameter : aadlreal;
+		SuccessCount : aadlreal;
+		SampleCount : aadlreal;
+		Probability : aadlreal;
+		Distribution : aadlstring;
+	);
+
+end Bayes;

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature id="org.osate2.bayes.feature">
+      <category name="org.osate2.bayes.category"/>
+   </feature>
+   <category-def name="org.osate2.bayes.category" label="org.osate2.bayes.category"/>
+</site>

@@ -1,0 +1,17 @@
+package common
+public
+	data command
+	end command;
+	
+	data sensor
+	end sensor;
+
+	data implementation command.accOnOff
+	end command.accOnOff;
+
+	data implementation command.accControl
+	end command.accControl;
+
+	data implementation sensor.aoaReading
+	end sensor.aoaReading;
+end common;

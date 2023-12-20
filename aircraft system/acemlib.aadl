@@ -1,0 +1,41 @@
+package acemlib
+public
+	annex EMV2 {**
+		error types
+			Incident: type;
+			ACCFail: type;
+			PilotFlightControlMistake: type;
+			PilotDecisionMistake: type;
+			ACCFailUnawareFlightControlMistake: type;
+			AOADiscrepancyUnawarePilotMistake: type;
+			NoPilotControl: type;
+			NoACCTurnOff: type;
+			NoACCKnowledgeNoTurnoff: type;
+			AOADiscrepancyUnawareNoTurnoff: type;
+			AOADiscrepancyAwareNoTurnoff: type;
+			BadACCControl: type;
+			ContinuousBadACCControl: type;
+		end types;
+		
+		error behavior ACCStates
+			states
+				operational: initial state;
+				badcontrol: state;
+				continuousbadcontrol: state;
+				standby: state;
+				failed: state;
+		end behavior;
+		
+		error behavior ClimbControlStates
+			states
+				ACCInCharge: initial state;
+				PilotInCharge: state;
+		end behavior;
+		
+		error behavior AccMonitorStates
+			states
+				MonitorInCharge: initial state;
+				PilotDecition: state;
+		end behavior;
+	**};
+end acemlib;

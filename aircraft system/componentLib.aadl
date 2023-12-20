@@ -1,0 +1,26 @@
+package componentLib
+public
+	
+	device deviceA
+		features
+			out1: out data port;
+		annex emv2 {**
+			use behavior ErrorLibrary::Failstop;
+		**};
+	end deviceA;
+	
+	device deviceB
+		features
+			in1: in data port;
+		annex emv2 {**
+			use behavior ErrorLibrary::Failstop;
+		**};
+	end deviceB;
+	
+	device implementation deviceA.imp	
+	end deviceA.imp;
+	
+	device implementation deviceB.imp	
+	end deviceB.imp;
+
+end componentLib;

@@ -1,0 +1,282 @@
+package AircraftSafetyExample
+public
+
+	device aoasensor
+		features
+			aoareading: out data port;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				aoareading: out propagation {BadValue};
+			end propagations;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-5;] applies to aoareading.BadValue;
+		**};
+	end aoasensor;
+
+	device AuxiliaryClimbControl
+		features
+			aoa1: in data port;
+			aoa2: in data port;
+			ACCOnOff: in feature;
+			cmd: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::ACCStates;
+			
+			error propagations
+				aoa1: in propagation {BadValue};
+				aoa2: in propagation {BadValue};
+				ACCOnOff: in propagation {NoACCTurnOff};
+				cmd: out propagation {BadACCControl, ServiceOmission};
+			end propagations;
+			
+			component error behavior
+				events
+					ACCFail: error event;
+				transitions
+					operational -[1 ormore(aoa1 {BadValue}, aoa2 {BadValue})]-> badcontrol;
+				propagations
+					badcontrol -[ACCOnOff {NoACCTurnOff}]-> cmd {BadACCControl};
+					all -[ACCFail]-> cmd {ServiceOmission};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.3E-6;] applies to ACCFail;
+		**};
+	end AuxiliaryClimbControl;
+
+	abstract pilot
+		features
+			ACCOnOff: out feature;
+			cmd: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				cmd: out propagation {NoPilotControl};
+				ACCOnOff: out propagation {NoACCTurnOff};
+			end propagations;
+			
+			component error behavior
+				events
+					mistakes: error event {PilotDecisionMistake, PilotFlightControlMistake};
+				propagations
+					-- The pilot has to deduce from the flight behavior that ACC provides bad control commands.
+					-- The pilot may also make the mistake of not turning off the ACC.
+					PilotTurnOff: all -[mistakes {PilotDecisionMistake}]-> ACCOnOff {NoACCTurnOff};
+					PilotControl: all -[mistakes {PilotFlightControlMistake}]-> cmd {NoPilotControl};
+			end component;
+			
+			properties
+				-- general flight control mistake
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-6;] applies to mistakes.PilotFlightControlMistake;
+				-- probability of failing to turn off ACC when watchdog is not working
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-3;] applies to mistakes.PilotDecisionMistake;
+		**};
+	end pilot;
+
+	device flightsurface
+		features
+			autocmd: in feature;
+			pilotcmd: in feature;
+			flightsurfaceeffect: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::ClimbControlStates;
+			
+			error propagations
+				autocmd: in propagation {ServiceOmission, BadACCControl};
+				pilotcmd: in propagation {NoPilotControl};
+				flightsurfaceeffect: out propagation {Incident};
+			end propagations;
+			
+			component error behavior
+				events
+					FSFail: error event;
+				transitions
+					ACCFails: ACCInCharge -[autocmd {ServiceOmission}]-> PilotInCharge;
+				propagations
+					-- this condition indicates that we have an incident if AutoCmd misbehavior AND pilot misbehaviors when in charge, i.e., while AutoCmd fails
+					PilotInChargeMistake: PilotInCharge -[pilotcmd {NoPilotControl}]-> flightsurfaceeffect {Incident};
+					ACCCBadControl: ACCInCharge -[autocmd {BadACCControl}]-> flightsurfaceeffect {Incident};
+					FSFails: all -[FSFail]-> flightsurfaceeffect {Incident};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 2.0e-9;] applies to FSFail;
+		**};
+	end flightsurface;
+
+	device aoadiscrepancydetector
+		features
+			aoa1: in data port;
+			aoa2: in data port;
+			discrepancysignal: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				aoa1: in propagation {BadValue};
+				aoa2: in propagation {BadValue};
+				discrepancysignal: out propagation {ServiceOmission};
+			end propagations;
+			
+			component error behavior
+				events
+					DiscrepancyDetectorFail: error event;
+				propagations
+					all -[DiscrepancyDetectorFail]-> discrepancysignal {ServiceOmission};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0e-6;] applies to DiscrepancyDetectorFail;
+		**};
+	end aoadiscrepancydetector;
+	
+	device watchdog
+		features
+			discrepancysignal: in feature;
+			pilotACCOnOff: in feature;
+			ACCOnOff: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::AccMonitorStates;
+			
+			error propagations
+				discrepancysignal: in propagation {ServiceOmission};
+				pilotACCOnOff: in propagation {NoACCTurnOff};
+				ACCOnOff: out propagation {NoACCTurnOff};
+			end propagations;
+			
+			component error behavior
+				events
+					WatchdogFail: error event;
+				transitions
+					WatchdogFails: all -[WatchdogFail and discrepancysignal {ServiceOmission}]-> PilotDecition;
+				propagations
+					PilotDecisionMistake: PilotDecition -[pilotACCOnOff {NoACCTurnOff}]-> ACCOnOff {NoACCTurnOff};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0e-6;] applies to WatchdogFail;
+		**};
+	end watchdog;
+
+	device Engine
+		features
+			thrust: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				thrust: out propagation {Incident};
+			end propagations;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.5E-6;] applies to thrust.Incident;
+		**};
+	end Engine;
+
+	system ac
+		features
+			aceffect: out feature;
+		annex emv2 {**
+			use types acemlib;
+			
+			error propagations
+				aceffect: out propagation {Incident};
+			end propagations;
+		**};
+	end ac;
+
+	system implementation ac.common
+		subcomponents
+			aoa1: device aoasensor;
+			aoa2: device aoasensor;
+			flightsurface: device flightsurface;
+			ACC: device AuxiliaryClimbControl;
+			pilot: abstract pilot;
+			aoaDiscrepancyIndicator: device aoadiscrepancydetector;
+			watchdog: device watchdog;
+			engine1: device engine;
+			engine2: device engine;
+			engine3: device engine;
+			engine4: device engine;
+		connections
+			a1: port aoa1.aoareading -> ACC.aoa1;
+			a2: port aoa2.aoareading -> ACC.aoa2;
+			autoctrl: feature ACC.cmd -> flightsurface.autocmd;
+			pilotctrl: feature pilot.cmd -> flightsurface.pilotcmd;
+			
+			discreSignal: feature aoaDiscrepancyIndicator.discrepancysignal -> watchdog.discrepancysignal;
+			pilotTurnOff: feature pilot.ACCOnOff -> watchdog.pilotACCOnOff;
+			monitorTurnOff: feature watchdog.ACCOnOff -> ACC.ACCOnOff;
+			
+			controleffect: feature flightsurface.flightsurfaceeffect -> aceffect;
+			engine1conn: feature engine1.thrust -> aceffect;
+			engine2conn: feature engine2.thrust -> aceffect;
+			engine3conn: feature engine3.thrust -> aceffect;
+			engine4conn: feature engine4.thrust -> aceffect;
+			amon1: port aoa1.aoareading -> aoaDiscrepancyIndicator.aoa1;
+			amon2: port aoa2.aoareading -> aoaDiscrepancyIndicator.aoa2;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			component error behavior
+				propagations
+					acincident: all -[
+						1 ormore (flightsurface.flightsurfaceeffect {Incident},
+							3 ormore(
+								engine1.thrust {Incident},
+								engine2.thrust {Incident},
+								engine3.thrust {Incident},
+								engine4.thrust {Incident}
+							)
+						)
+					]-> aceffect {Incident};
+			end component;
+		**};
+	end ac.common;
+	
+	-- vendor A vs vendor B AOA
+	
+	device implementation aoasensor.vendorA
+		annex emv2 {**
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.5E-6;] applies to aoareading.BadValue;
+		**};
+	end aoasensor.vendorA;
+
+	device implementation aoasensor.vendorB
+		annex emv2 {**
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 2.5E-5;] applies to aoareading.BadValue;
+		**};
+	end aoasensor.vendorB;
+	
+	system implementation ac.SensorVA extends ac.common
+		subcomponents
+			aoa1: refined to device aoasensor.vendorA;
+			aoa2: refined to device aoasensor.vendorA;
+	end ac.SensorVA;
+	
+	system implementation ac.SensorVB extends ac.common
+		subcomponents
+			aoa1: refined to device aoasensor.vendorB;
+			aoa2: refined to device aoasensor.vendorB;
+	end ac.SensorVB;
+
+end AircraftSafetyExample;

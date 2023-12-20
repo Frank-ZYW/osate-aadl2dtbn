@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <extension
+         point="org.eclipse.ui.commands">
+      <category
+            id="org.osate2.bayes.category"
+            name="OSATE Bayesian Networks Analysis">
+      </category>
+      <command
+            categoryId="org.osate2.bayes.category"
+            id="org.osate2.bayes.command"
+            name="Run Bayesian Networks Analysis"
+            description="Run Bayesian Networks Analysis">
+      </command>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="org.osate2.bayes.dtbn.Handler.DTBNHandler"
+            commandId="org.osate2.bayes.command">
+         <enabledWhen>
+            <reference definitionId="org.osate.ui.definition.isInstanceFileOrComponentInstanceSelected"/>
+         </enabledWhen>
+      </handler>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.commandImages">
+      <image
+            commandId="org.osate2.bayes.command"
+            icon="icons/bayes.png">
+      </image>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
+         <toolbar
+               id="org.osate.ui.bayesToolbar"
+               label="Bayesian Networks Analysis">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference definitionId="org.osate.ui.definition.inAadlPerspective"/>
+            </visibleWhen>
+            <separator
+                  name="core">
+            </separator>
+            <separator
+                  name="third_party">
+            </separator>
+         </toolbar>
+      </menuContribution>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="toolbar:org.osate.ui.bayesToolbar?after=core">
+         <command
+               commandId="org.osate2.bayes.command"
+               tooltip="Run Bayesian Networks Analysis">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference definitionId="org.osate.ui.definition.inAadlPerspective"/>
+            </visibleWhen>
+         </command>
+      </menuContribution>
+   </extension>
+
+</plugin>
