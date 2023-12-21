@@ -12,6 +12,6 @@ public
 	data implementation command.accControl
 	end command.accControl;
 
-	data implementation sensor.aoaReading
-	end sensor.aoaReading;
+	data implementation sensor.lidarReading
+	end sensor.lidarReading;
 end common;

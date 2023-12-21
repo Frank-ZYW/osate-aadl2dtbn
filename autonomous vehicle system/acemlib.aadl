@@ -4,15 +4,15 @@ public
 		error types
 			Incident: type;
 			ACCFail: type;
-			PilotFlightControlMistake: type;
-			PilotDecisionMistake: type;
-			ACCFailUnawareFlightControlMistake: type;
-			AOADiscrepancyUnawarePilotMistake: type;
-			NoPilotControl: type;
+			DriverControlMistake: type;
+			DriverDecisionMistake: type;
+			ACCFailUnawareControlMistake: type;
+			LidarDiscrepancyUnawareDriverMistake: type;
+			NoDriverControl: type;
 			NoACCTurnOff: type;
 			NoACCKnowledgeNoTurnoff: type;
-			AOADiscrepancyUnawareNoTurnoff: type;
-			AOADiscrepancyAwareNoTurnoff: type;
+			LidarDiscrepancyUnawareNoTurnoff: type;
+			LidarDiscrepancyAwareNoTurnoff: type;
 			BadACCControl: type;
 			ContinuousBadACCControl: type;
 		end types;
@@ -26,16 +26,16 @@ public
 				failed: state;
 		end behavior;
 		
-		error behavior ClimbControlStates
+		error behavior MovementControlStates
 			states
 				ACCInCharge: initial state;
-				PilotInCharge: state;
+				DriverInCharge: state;
 		end behavior;
 		
 		error behavior AccMonitorStates
 			states
 				MonitorInCharge: initial state;
-				PilotDecition: state;
+				DriverDecition: state;
 		end behavior;
 	**};
 end acemlib;

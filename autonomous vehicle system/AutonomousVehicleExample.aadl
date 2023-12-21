@@ -1,0 +1,282 @@
+package AutonomousVehicleExample
+public
+
+	device lidarsensor
+		features
+			lidarreading: out data port;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				lidarreading: out propagation {BadValue};
+			end propagations;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-5;] applies to lidarreading.BadValue;
+		**};
+	end lidarsensor;
+
+	device AdaptiveCruiseControl
+		features
+			lidar1: in data port;
+			lidar2: in data port;
+			ACCOnOff: in feature;
+			cmd: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::ACCStates;
+			
+			error propagations
+				lidar1: in propagation {BadValue};
+				lidar2: in propagation {BadValue};
+				ACCOnOff: in propagation {NoACCTurnOff};
+				cmd: out propagation {BadACCControl, ServiceOmission};
+			end propagations;
+			
+			component error behavior
+				events
+					ACCFail: error event;
+				transitions
+					operational -[1 ormore(lidar1 {BadValue}, lidar2 {BadValue})]-> badcontrol;
+				propagations
+					badcontrol -[ACCOnOff {NoACCTurnOff}]-> cmd {BadACCControl};
+					all -[ACCFail]-> cmd {ServiceOmission};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.3E-6;] applies to ACCFail;
+		**};
+	end AdaptiveCruiseControl;
+
+	abstract driver
+		features
+			ACCOnOff: out feature;
+			cmd: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				cmd: out propagation {NoDriverControl};
+				ACCOnOff: out propagation {NoACCTurnOff};
+			end propagations;
+			
+			component error behavior
+				events
+					mistakes: error event {DriverDecisionMistake, DriverControlMistake};
+				propagations
+					-- The driver has to deduce from the vehicle's behavior that ACC provides bad control commands.
+					-- The driver may also make the mistake of not turning off the ACC.
+					DriverTurnOff: all -[mistakes {DriverDecisionMistake}]-> ACCOnOff {NoACCTurnOff};
+					DriverControl: all -[mistakes {DriverControlMistake}]-> cmd {NoDriverControl};
+			end component;
+			
+			properties
+				-- general driving control mistake
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-6;] applies to mistakes.DriverControlMistake;
+				-- probability of failing to turn off ACC when watchdog is not working
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0E-3;] applies to mistakes.DriverDecisionMistake;
+		**};
+	end driver;
+
+	device centerconsole
+		features
+			autocmd: in feature;
+			drivercmd: in feature;
+			centerconsoleeffect: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::MovementControlStates;
+			
+			error propagations
+				autocmd: in propagation {ServiceOmission, BadACCControl};
+				drivercmd: in propagation {NoDriverControl};
+				centerconsoleeffect: out propagation {Incident};
+			end propagations;
+			
+			component error behavior
+				events
+					CCFail: error event;
+				transitions
+					ACCFails: ACCInCharge -[autocmd {ServiceOmission}]-> DriverInCharge;
+				propagations
+					-- this condition indicates that we have an incident if AutoCmd misbehavior AND driver misbehaviors when in charge, i.e., while AutoCmd fails
+					DriverInChargeMistake: DriverInCharge -[drivercmd {NoDriverControl}]-> centerconsoleeffect {Incident};
+					ACCCBadControl: ACCInCharge -[autocmd {BadACCControl}]-> centerconsoleeffect {Incident};
+					FSFails: all -[CCFail]-> centerconsoleeffect {Incident};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 2.0e-9;] applies to CCFail;
+		**};
+	end centerconsole;
+
+	device lidardiscrepancydetector
+		features
+			lidar1: in data port;
+			lidar2: in data port;
+			discrepancysignal: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				lidar1: in propagation {BadValue};
+				lidar2: in propagation {BadValue};
+				discrepancysignal: out propagation {ServiceOmission};
+			end propagations;
+			
+			component error behavior
+				events
+					DiscrepancyDetectorFail: error event;
+				propagations
+					all -[DiscrepancyDetectorFail]-> discrepancysignal {ServiceOmission};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0e-6;] applies to DiscrepancyDetectorFail;
+		**};
+	end lidardiscrepancydetector;
+	
+	device watchdog
+		features
+			discrepancysignal: in feature;
+			driverACCOnOff: in feature;
+			ACCOnOff: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			use behavior acemlib::AccMonitorStates;
+			
+			error propagations
+				discrepancysignal: in propagation {ServiceOmission};
+				driverACCOnOff: in propagation {NoACCTurnOff};
+				ACCOnOff: out propagation {NoACCTurnOff};
+			end propagations;
+			
+			component error behavior
+				events
+					WatchdogFail: error event;
+				transitions
+					WatchdogFails: all -[WatchdogFail and discrepancysignal {ServiceOmission}]-> DriverDecition;
+				propagations
+					DriverDecisionMistake: DriverDecition -[driverACCOnOff {NoACCTurnOff}]-> ACCOnOff {NoACCTurnOff};
+			end component;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.0e-6;] applies to WatchdogFail;
+		**};
+	end watchdog;
+
+	device electricmotor
+		features
+			power: out feature;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			error propagations
+				power: out propagation {Incident};
+			end propagations;
+			
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.5E-6;] applies to power.Incident;
+		**};
+	end electricmotor;
+
+	system ac
+		features
+			aceffect: out feature;
+		annex emv2 {**
+			use types acemlib;
+			
+			error propagations
+				aceffect: out propagation {Incident};
+			end propagations;
+		**};
+	end ac;
+
+	system implementation ac.common
+		subcomponents
+			lidar1: device lidarsensor;
+			lidar2: device lidarsensor;
+			centerconsole: device centerconsole;
+			ACC: device AdaptiveCruiseControl;
+			driver: abstract driver;
+			lidarDiscrepancyIndicator: device lidardiscrepancydetector;
+			watchdog: device watchdog;
+			e1: device electricmotor;
+			e2: device electricmotor;
+			e3: device electricmotor;
+			e4: device electricmotor;
+		connections
+			l1: port lidar1.lidarreading -> ACC.lidar1;
+			l2: port lidar2.lidarreading -> ACC.lidar2;
+			autoctrl: feature ACC.cmd -> centerconsole.autocmd;
+			driverctrl: feature driver.cmd -> centerconsole.drivercmd;
+			
+			discreSignal: feature lidarDiscrepancyIndicator.discrepancysignal -> watchdog.discrepancysignal;
+			driverTurnOff: feature driver.ACCOnOff -> watchdog.driverACCOnOff;
+			monitorTurnOff: feature watchdog.ACCOnOff -> ACC.ACCOnOff;
+			
+			controleffect: feature centerconsole.centerconsoleeffect -> aceffect;
+			e1conn: feature e1.power -> aceffect;
+			e2conn: feature e2.power -> aceffect;
+			e3conn: feature e3.power -> aceffect;
+			e4conn: feature e4.power -> aceffect;
+			lmon1: port lidar1.lidarreading -> lidarDiscrepancyIndicator.lidar1;
+			lmon2: port lidar2.lidarreading -> lidarDiscrepancyIndicator.lidar2;
+		annex emv2 {**
+			use types ErrorLibrary, acemlib;
+			
+			component error behavior
+				propagations
+					acincident: all -[
+						1 ormore (centerconsole.centerconsoleeffect {Incident},
+							3 ormore(
+								e1.power {Incident},
+								e2.power {Incident},
+								e3.power {Incident},
+								e4.power {Incident}
+							)
+						)
+					]-> aceffect {Incident};
+			end component;
+		**};
+	end ac.common;
+	
+	-- vendor A vs vendor B Lidar
+	
+	device implementation lidarsensor.vendorA
+		annex emv2 {**
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 1.5E-6;] applies to lidarreading.BadValue;
+		**};
+	end lidarsensor.vendorA;
+
+	device implementation lidarsensor.vendorB
+		annex emv2 {**
+			properties
+				EMV2::OccurrenceDistribution => [
+					ProbabilityValue => 2.5E-5;] applies to lidarreading.BadValue;
+		**};
+	end lidarsensor.vendorB;
+	
+	system implementation ac.SensorVA extends ac.common
+		subcomponents
+			lidar1: refined to device lidarsensor.vendorA;
+			lidar2: refined to device lidarsensor.vendorA;
+	end ac.SensorVA;
+	
+	system implementation ac.SensorVB extends ac.common
+		subcomponents
+			lidar1: refined to device lidarsensor.vendorB;
+			lidar2: refined to device lidarsensor.vendorB;
+	end ac.SensorVB;
+
+end AutonomousVehicleExample;
